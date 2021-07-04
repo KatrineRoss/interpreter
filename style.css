@@ -1,5 +1,5 @@
 * {
-    transition: all .2s ease-in-out;
+    transition: all .1s ease-in-out;
     box-sizing: border-box;
 }
 
@@ -36,12 +36,17 @@ body {
     transform: translate(-50%, -50%);
 }
 
-.expression-input {
-    height: 2.5rem;
+.expression-input-wrapper {
+    position: relative;
 
     margin-bottom: 15px;
+}
 
-    padding: 0 1rem;
+.expression-input {
+    height: 2.5rem;
+    width: 100%;
+
+    padding: 0 2.1rem 0 1.3rem;
 
     border: 1px solid rgb(163, 163, 163);
     border-radius: .3rem;
@@ -55,6 +60,31 @@ body {
 .expression-input:focus {
     box-shadow: 0 0 .7rem rgb(172, 218, 203);
     border: 1px solid rgb(192, 192, 192);
+}
+
+.expression-input__clear-btn {
+    display: flex;
+
+    opacity: 0;
+
+    position: absolute;
+    top: 50%;
+    right: 0;
+
+    transform: translate(-100%, -50%);
+
+    cursor: pointer;
+
+    color: inherit;
+
+    background: transparent;
+
+    border: none;
+
+    padding: 0;
+}
+.expression-input__clear-btn:hover {
+    color: rgb(167, 18, 18);
 }
 
 
