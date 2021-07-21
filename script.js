@@ -1,11 +1,31 @@
+const expressionInput = document.getElementsByClassName('expression-input')?.[0];
 const resultField = document.getElementsByClassName('result-field')?.[0];
+const errorsField = document.getElementsByClassName('errors-field')?.[0];
+const calculateBtn = document.getElementsByClassName('calculate-button')?.[0];
 const clearBtn = document.getElementsByClassName('expression-input__clear-btn')?.[0];
 
+const TOKEN_TYPES = Object.freeze({
+    INTEGER: 'INTEGER',
+    OPERATION: 'OPERATION',
+});
+
+const OPERATION_TYPES = Object.freeze({
+    PLUS: '+',
+    MINUS: '-',
+    MULTIPLICATION: '*',
+    DIVISION: '/',
+});
+
+const PARENTHESIS_TYPES = Object.freeze({
+    OPEN: '(',
+    CLOSE: ')',
+});
+
+const isOperationSign = (char) => Object.keys(OPERATION_TYPES).map((key) => OPERATION_TYPES[key]).includes(char);
+const isParenthesis = (char) => Object.keys(PARENTHESIS_TYPES).map((key) => PARENTHESIS_TYPES[key]).includes(char);
+const isInteger = (char) => '0123456789'.includes(char);
 const isFirstOrderOperationSign = (char) => '/*'.includes(char);
 const isSecondOrderOperationSign = (char) => '-+'.includes(char);
-const isOperationSign = (char) => '/*+-'.includes(char);
-
-const isInteger = (char) => '0123456789'.includes(char);
 
 const inverseExpression = (expression) => {
     let result = '';
@@ -68,9 +88,107 @@ const findEndOfSubExpressionIndex = (expression, ) => {
 };
 
 const ERRORS_TYPES = Object.freeze({
-    NEED_OPERATION_SIGN: 'NEED_OPERATION_SIGN',
-    NEED_CLOSING_PARENTHESIS: 'NEED_CLOSING_PARENTHESIS',
+    OPERAND_REQUIRED: 'OPERAND_REQUIRED',
+    OPERATION_REQUIRED: 'OPERATION_REQUIRED',
+    CLOSING_PARENTHESIS_REQUIRED: 'CLOSING_PARENTHESIS_REQUIRED',
+    OPEN_PARENTHESIS_REQUIRED: 'OPEN_PARENTHESIS_REQUIRED',
+    UNRESOLVED_SYMBOL: 'UNRESOLVED_SYMBOL',
 });
+
+
+class ValidationError {
+    constructor(type, position) {
+        this.type = type;
+        this.position = position;
+    }
+
+    get message() {
+        switch (this.type) {
+            case ERRORS_TYPES.OPERAND_REQUIRED:
+                return `Operand required at position [${this.position}]!`;
+            case ERRORS_TYPES.OPERATION_REQUIRED:
+                return `Operation sign required at position [${this.position}]!`;
+            case ERRORS_TYPES.CLOSING_PARENTHESIS_REQUIRED:
+                return `Closing parenthesis for [${this.position}] required!`;
+            case ERRORS_TYPES.OPEN_PARENTHESIS_REQUIRED:
+                return `Open parenthesis for [${this.position}] required!`;
+            case ERRORS_TYPES.UNRESOLVED_SYMBOL:
+                return `Unresolved symbol detected at [${this.position}]`;
+            default:
+                return 'There is an error in your expression!';
+        }
+    }
+};
+
+class Validator {
+    constructor() {
+        this._errors = [];
+    }
+
+    validate(expression) {
+        let openParenIndexes = [];
+
+        if (!!expression) {
+            for (let i = 0; i < expression.length; i++) {
+                const index = i + 1;
+                // Check if the char is resolved.
+                if (!(isInteger(expression[i]) || isOperationSign(expression[i]) || isParenthesis(expression[i]))) {
+                    this._errors.push(new ValidationError(ERRORS_TYPES.UNRESOLVED_SYMBOL, index));
+                }
+    
+                if (isOperationSign(expression[i])  && (!isInteger(expression[i+1]) && !isParenthesis(expression[i+1]))) {
+                    this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index+1));
+                }
+    
+                if (expression[i] === '(') {
+                    openParenIndexes.push(index);
+
+                    if (expression[i - 1] !== undefined && !isOperationSign(expression[i - 1])) {
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERATION_REQUIRED, index));
+                    }
+
+                    if (expression[i + 1] !== undefined && !isSecondOrderOperationSign(expression[i + 1]) && isOperationSign(expression[i + 1])) {
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERATION_REQUIRED, index + 1));
+                    }
+                }
+    
+                // Check if right parenthesis has a left pair.
+                // If there already is an open parenthesis (i.e. openParenIndexes is not empty), then it's ok and we can pop openParenIndexes.
+                if (expression[i] === ')') {
+                    if (isOperationSign(expression[i - 1])) {
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index));
+                    }
+
+                    if (expression[i + 1] !== undefined && !isOperationSign(expression[i + 1])) {
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERATION_REQUIRED, index + 1));
+                    }
+
+                    if (openParenIndexes.length === 0) {
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPEN_PARENTHESIS_REQUIRED, index));
+                    } else {
+                        openParenIndexes.pop();
+                    }
+
+                    if (expression[i-1] === PARENTHESIS_TYPES.OPEN) {
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index+1));
+                    }
+                }
+            }
+    
+            // Check if any left parenthesis has no right pair.
+            // An error appears if openParenIndexes is not discarded (closing parenthesis hasn't found).
+            if (!!openParenIndexes.length > 0) {
+                this._errors.push(new ValidationError(ERRORS_TYPES.CLOSING_PARENTHESIS_REQUIRED, openParenIndexes.pop()));
+            }
+        }
+
+        return this;
+    }
+
+    get errors() {
+        return [...this._errors];
+    }
+}
 
 const getErrorMessage = (type, position) => {
     switch (type) {
@@ -97,16 +215,6 @@ class Integer {
     }
 }
 
-const TOKEN_TYPES = Object.freeze({
-    INTEGER: 'INTEGER',
-    PLUS: '+',
-    MINUS: '-',
-    MULT: '*',
-    DIV: '/',
-    PAREN_L: '(',
-    PAREN_R: ')',
-});
-
 class Token {
     constructor(value, type) {
         this.value = value;
@@ -115,10 +223,10 @@ class Token {
 }
 
 const BINARY_OPERATIONS = Object.freeze({
-    ADD: '+',
-    SUBSTRACT: '-',
-    MULTIPLY: '*',
-    DIVISION: '/',
+    ADD: OPERATION_TYPES.PLUS,
+    SUBSTRACT: OPERATION_TYPES.MINUS,
+    MULTIPLY: OPERATION_TYPES.MULTIPLICATION,
+    DIVISION: OPERATION_TYPES.DIVISION,
 });
 
 class BinaryOperation {
@@ -170,7 +278,7 @@ class ExpressionProcessor {
         const tokens = [];
 
         for (let i = 0; i < expression.length; i++) {
-            const isNegative = expression[i-1] === TOKEN_TYPES.MINUS;
+            const isNegative = expression[i-1] === OPERATION_TYPES.MINUS;
 
             if (isInteger(expression[i])) {
                 const num = [];
@@ -182,45 +290,34 @@ class ExpressionProcessor {
 
                 if (!isFirstOrder && isFirstOrderOperationSign(expression[i])) {
                     let subExpression = expression.slice(i - num.length);
-                    // Firstly, look for 
-                    // const firstRParenIndex = subExpression.search(/)/);
-                    // const firstSecOrderOperationSignIndex = subExpression.search(/\+|-/);
-                    // const endOfSubExpressionIndex = firstRParenIndex >= 0 ? firstRParenIndex : firstSecOrderOperationSignIndex;
                     const endOfSubExpressionIndex = findEndOfFirstOrderOperationIndex(subExpression);
                     
                     subExpression = subExpression.slice(0, endOfSubExpressionIndex >= 0 ? endOfSubExpressionIndex : undefined);
 
                     tokens.push(this._parse(isNegative ? `-${subExpression}` : subExpression, true));
-                    // tokens.push(this._parse(subExpression, true));
 
                     i = endOfSubExpressionIndex >= 0 ? endOfSubExpressionIndex + i - 1 : expression.length;
                 } else {
                     const avgNum = num.join('');
+
                     tokens.push(new Token(isNegative ? `-${avgNum}` : avgNum, TOKEN_TYPES.INTEGER));
-                    // tokens.push(new Token(avgNum, TOKEN_TYPES.INTEGER));
                 }
             }
 
             if (expression[i-1] && isOperationSign(expression[i])) {
                 // if operation sign is minus replace it by pluse, because we already know if the integer is negative.
-                const operation = expression[i] === TOKEN_TYPES.MINUS ? TOKEN_TYPES.PLUS : expression[i];
-                // const operation = expression[i];
+                const operation = expression[i] === OPERATION_TYPES.MINUS ? OPERATION_TYPES.PLUS : expression[i];
 
-                tokens.push(new Token(operation, operation));
+                tokens.push(new Token(operation, TOKEN_TYPES.OPERATION));
             }
 
-            if (expression[i] === TOKEN_TYPES.PAREN_L) {
-                // const parenRightIndex = expression.slice(i).search(/\)/);
+            if (expression[i] === PARENTHESIS_TYPES.OPEN) {
                 const parenRightIndex = findEndOfSubExpressionIndex(expression.slice(i));
+                const subExpression = expression.slice(i + 1, parenRightIndex + i);
 
-                if (parenRightIndex === -1) {
-                    throw new Error(getErrorMessage(ERRORS_TYPES.NEED_CLOSING_PARENTHESIS, expression[i]));
-                } else {
-                    const subExpression = expression.slice(i + 1, parenRightIndex + i);
-                    tokens.push(this._parse(isNegative ? inverseExpression(subExpression) : subExpression));
+                tokens.push(this._parse(isNegative ? inverseExpression(subExpression) : subExpression));
 
-                    i = parenRightIndex + i;
-                }
+                i = parenRightIndex + i;
             }
         }
 
@@ -248,13 +345,9 @@ class ExpressionProcessor {
          * If has an operation sign [1] and a left arg [2] - create binary operation and process it recursively.
          */
         if (flatedTokensList[operationSignIndex]) {
-            if (!isInteger(flatedTokensList[operationSignIndex].value)) {
-                const bo = new BinaryOperation(new Integer(flatedTokensList[leftArgIndex]?.value), this._process(flatedTokensList, rightArgIndex), flatedTokensList[operationSignIndex].value);
+            const bo = new BinaryOperation(new Integer(flatedTokensList[leftArgIndex]?.value), this._process(flatedTokensList, rightArgIndex), flatedTokensList[operationSignIndex].value);
 
-                return new Integer(bo.value);
-            }
-
-            throw new Error(getErrorMessage(ERRORS_TYPES.NEED_OPERATION_SIGN, operationSignIndex))
+            return new Integer(bo.value);
         }
     }
 
@@ -265,23 +358,93 @@ class ExpressionProcessor {
     }
 }
 
+const clearErrorsField = () => {
+    errorsField.innerHTML = '';
+    errorsField.classList.add('errors-field--disabled');
+};
+
+const clearResultField = () => {
+    resultField.innerHTML = '';
+};
+
 calculate = (form) => {
     const expression = form.getElementsByClassName('expression-input')?.[0]?.value;
-    const ep = new ExpressionProcessor();
-    const result = ep.calculate(expression);
+    const v = new Validator();
+    clearResultField();
+    clearErrorsField();
+    const errors = v.validate(expression).errors;
 
-    resultField.innerHTML = result.value;
+    if (errors.length > 0) {
+        const newListElem = document.createElement('ul');
+
+        for (index in errors) {
+            const newElem = document.createElement('li');
+
+            newElem.innerHTML = errors[index].message;
+
+            newListElem.appendChild(newElem);
+        }
+
+        expressionInput.classList.add('expression-input--invalid');
+        errorsField.appendChild(newListElem);
+        errorsField.classList.remove('errors-field--disabled');
+    } else {
+        const ep = new ExpressionProcessor();
+        const result = ep.calculate(expression);
+    
+        expressionInput.classList.remove('expression-input--invalid');
+        resultField.innerHTML = result.value;
+    }
 };
+
+const clearForm = () => {
+    clearResultField();
+    clearErrorsField();
+    clearBtn.style.opacity = '0';
+    calculateBtn.setAttribute('disabled', true);
+}
 
 const handleClearButtonClick = () => {
-    resultField.innerHTML = '';
-    clearBtn.style.opacity = '0';
+    clearForm();
 };
 
-const handleExpressionInputChange = (input) => {
-    if (input.value.length > 0) {
-        clearBtn.style.opacity = '1';
-    } else {
-        clearBtn.style.opacity = '0';
+const removeUnresolvedChars = (string) => {
+    let result = "";
+
+    if (string !== null) {
+        for (let index in string) {
+            if (isInteger(string[index]) || isOperationSign(string[index]) || isParenthesis(string[index])) {
+                result += string[index];
+            }
+        }
+    }
+
+    return result;
+}
+
+const maskExpressionInput = (inputData) => {
+    const inputValue = expressionInput.value;
+
+    if (inputData !== null && !(isInteger(inputData) || isOperationSign(inputData) || isParenthesis(inputData))) {
+        const indexOfUnresolvedChar = inputValue.indexOf(inputData);
+        expressionInput.value = inputValue.slice(0, indexOfUnresolvedChar) + inputValue.slice(indexOfUnresolvedChar + 1);
+    } else if (inputData === null && inputValue !== "") {
+        expressionInput.value = removeUnresolvedChars(inputValue);
     }
 }
+
+const handleInput = (event) => {
+    maskExpressionInput(event.data);
+
+    if (expressionInput.value.length > 0) {
+        clearErrorsField();
+        clearBtn.style.opacity = '1';
+        calculateBtn.removeAttribute('disabled');
+    } else {
+        clearForm();
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    expressionInput.addEventListener('input', handleInput);
+});

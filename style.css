@@ -27,6 +27,7 @@ body {
 .calculation-form {
     display: flex;
     flex-direction: column;
+    align-items: center;
 
     width: 17rem;
 
@@ -36,8 +37,32 @@ body {
     transform: translate(-50%, -50%);
 }
 
+.errors-field {
+    width: 100%;
+    height: auto;
+
+    opacity: 1;
+
+    margin-bottom: 15px;
+
+    border-radius: .3rem;
+
+    font-size: .7rem;
+    color: rgb(255, 255, 255);
+
+    background: rgba(206, 47, 47, 0.7);
+}
+.errors-field--disabled {
+    width: 40%;
+    height: 2.2rem;
+
+    opacity: 0;
+}
+
 .expression-input-wrapper {
     position: relative;
+
+    width: 100%;
 
     margin-bottom: 15px;
 }
@@ -60,6 +85,10 @@ body {
 .expression-input:focus {
     box-shadow: 0 0 .7rem rgb(172, 218, 203);
     border: 1px solid rgb(192, 192, 192);
+}
+.expression-input--invalid:active,
+.expression-input--invalid:focus {
+    box-shadow: 0 0 .7rem rgb(218, 172, 172);
 }
 
 .expression-input__clear-btn {
@@ -87,11 +116,13 @@ body {
     color: rgb(167, 18, 18);
 }
 
-
 .calculate-button {
     position: relative;
 
     height: 7rem;
+    width: 100%;
+
+    opacity: 1;
 
     border: none;
     border-radius: 1rem;
@@ -132,6 +163,12 @@ body {
 }
 .calculate-button:hover::before {
     opacity: 1;
+}
+.calculate-button:disabled {
+    width: 40%;
+    height: 2.5rem;
+
+    opacity: 0;
 }
 
 .result-field {
