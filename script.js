@@ -1,32 +1,71 @@
-const expressionInput = document.getElementsByClassName('expression-input')?.[0];
-const resultField = document.getElementsByClassName('result-field')?.[0];
-const errorsField = document.getElementsByClassName('errors-field')?.[0];
-const calculateBtn = document.getElementsByClassName('calculate-button')?.[0];
-const clearBtn = document.getElementsByClassName('expression-input__clear-btn')?.[0];
-
+/**
+ * Possible token's types.
+ */
 const TOKEN_TYPES = Object.freeze({
     INTEGER: 'INTEGER',
     OPERATION: 'OPERATION',
 });
+/**
+ * Possible error's types.
+ */
+const ERRORS_TYPES = Object.freeze({
+    OPERAND_REQUIRED: 'OPERAND_REQUIRED',
+    OPERATION_REQUIRED: 'OPERATION_REQUIRED',
+    CLOSING_PARENTHESIS_REQUIRED: 'CLOSING_PARENTHESIS_REQUIRED',
+    OPEN_PARENTHESIS_REQUIRED: 'OPEN_PARENTHESIS_REQUIRED',
+    UNRESOLVED_SYMBOL: 'UNRESOLVED_SYMBOL',
+});
 
-const OPERATION_TYPES = Object.freeze({
+/**
+ * Possible operation symbols.
+ */
+const OPERATIONS = Object.freeze({
     PLUS: '+',
     MINUS: '-',
     MULTIPLICATION: '*',
     DIVISION: '/',
 });
-
-const PARENTHESIS_TYPES = Object.freeze({
+/**
+ * Parentheses symbols.
+ */
+const PARENTHESES = Object.freeze({
     OPEN: '(',
     CLOSE: ')',
 });
+/**
+ * Types of binary operations with symbols.
+ */
+const BINARY_OPERATIONS = Object.freeze({
+    ADD: OPERATIONS.PLUS,
+    SUBTRACT: OPERATIONS.MINUS,
+    MULTIPLY: OPERATIONS.MULTIPLICATION,
+    DIVISION: OPERATIONS.DIVISION,
+});
 
-const isOperationSign = (char) => Object.keys(OPERATION_TYPES).map((key) => OPERATION_TYPES[key]).includes(char);
-const isParenthesis = (char) => Object.keys(PARENTHESIS_TYPES).map((key) => PARENTHESIS_TYPES[key]).includes(char);
+/**
+ * Checks if char is an operation sign.
+ */
+const isOperationSign = (char) => Object.keys(OPERATIONS).map((key) => OPERATIONS[key]).includes(char);
+/**
+ * Checks if char is a parenthesis sign.
+ */
+const isParenthesis = (char) => Object.keys(PARENTHESES).map((key) => PARENTHESES[key]).includes(char);
+/**
+ * Checks if char is an number sign.
+ */
 const isInteger = (char) => '0123456789'.includes(char);
+/**
+ * Checks if char is a first order operation sign.
+ */
 const isFirstOrderOperationSign = (char) => '/*'.includes(char);
+/**
+ * Checks if char is a second order operation sign.
+ */
 const isSecondOrderOperationSign = (char) => '-+'.includes(char);
-
+/**
+ * Inverse operations in expression.
+ * E.g. minus before subexpression inverses '+' to '-', '-' to '+'.
+ */
 const inverseExpression = (expression) => {
     let result = '';
     const isNegative = expression?.[0] === '-';
@@ -46,27 +85,32 @@ const inverseExpression = (expression) => {
 
     return isNegative ? result.slice(1) : `-${result}`;
 }
-
-const findEndOfFirstOrderOperationIndex = (expression, ) => {
-    let closedParen = true;
+/**
+ * Looks for the end of a first order subexpression (multiplication, division).
+ * Includes expressions in parentheses.
+ */
+const findEndOfFirstOrderOperationIndex = (expression) => {
+    let closedParen = [];
 
     for (let i = 0; i < expression.length; i++) {
         if (expression[i] === '(') {
-            closedParen = false;
+            closedParen.push(i);
         }
 
         if (expression[i] === ')') {
-            closedParen = true;
+            closedParen.pop();
         }
 
-        if (isSecondOrderOperationSign(expression[i]) && closedParen) {
+        if (isSecondOrderOperationSign(expression[i]) && closedParen.length === 0) {
             return i;
         }
     }
 
     return -1;
 };
-
+/**
+ * Looks for the end of expression in parentheses.
+ */
 const findEndOfSubExpressionIndex = (expression, ) => {
     let nestedExpressionNotClosed = 0;
 
@@ -87,15 +131,9 @@ const findEndOfSubExpressionIndex = (expression, ) => {
     return -1;
 };
 
-const ERRORS_TYPES = Object.freeze({
-    OPERAND_REQUIRED: 'OPERAND_REQUIRED',
-    OPERATION_REQUIRED: 'OPERATION_REQUIRED',
-    CLOSING_PARENTHESIS_REQUIRED: 'CLOSING_PARENTHESIS_REQUIRED',
-    OPEN_PARENTHESIS_REQUIRED: 'OPEN_PARENTHESIS_REQUIRED',
-    UNRESOLVED_SYMBOL: 'UNRESOLVED_SYMBOL',
-});
-
-
+/**
+ * Implements an error with type, error's position and provides an error message according to the type.
+ */
 class ValidationError {
     constructor(type, position) {
         this.type = type;
@@ -119,7 +157,9 @@ class ValidationError {
         }
     }
 };
-
+/**
+ * Stores expression validation errors and provides validation method.
+ */
 class Validator {
     constructor() {
         this._errors = [];
@@ -131,12 +171,11 @@ class Validator {
         if (!!expression) {
             for (let i = 0; i < expression.length; i++) {
                 const index = i + 1;
-                // Check if the char is resolved.
                 if (!(isInteger(expression[i]) || isOperationSign(expression[i]) || isParenthesis(expression[i]))) {
                     this._errors.push(new ValidationError(ERRORS_TYPES.UNRESOLVED_SYMBOL, index));
                 }
     
-                if (isOperationSign(expression[i])  && (!isInteger(expression[i+1]) && !isParenthesis(expression[i+1]))) {
+                if (isOperationSign(expression[i]) && (!isInteger(expression[i+1]) && !isParenthesis(expression[i+1]))) {
                     this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index+1));
                 }
     
@@ -148,12 +187,11 @@ class Validator {
                     }
 
                     if (expression[i + 1] !== undefined && !isSecondOrderOperationSign(expression[i + 1]) && isOperationSign(expression[i + 1])) {
-                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERATION_REQUIRED, index + 1));
+                        this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index + 1));
                     }
                 }
     
-                // Check if right parenthesis has a left pair.
-                // If there already is an open parenthesis (i.e. openParenIndexes is not empty), then it's ok and we can pop openParenIndexes.
+                
                 if (expression[i] === ')') {
                     if (isOperationSign(expression[i - 1])) {
                         this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index));
@@ -163,13 +201,15 @@ class Validator {
                         this._errors.push(new ValidationError(ERRORS_TYPES.OPERATION_REQUIRED, index + 1));
                     }
 
+                    // Check if right parenthesis has a left pair.
+                    // If there already is an open parenthesis (i.e. openParenIndexes is not empty), then it's ok and we can pop openParenIndexes.
                     if (openParenIndexes.length === 0) {
                         this._errors.push(new ValidationError(ERRORS_TYPES.OPEN_PARENTHESIS_REQUIRED, index));
                     } else {
                         openParenIndexes.pop();
                     }
 
-                    if (expression[i-1] === PARENTHESIS_TYPES.OPEN) {
+                    if (expression[i-1] === PARENTHESES.OPEN) {
                         this._errors.push(new ValidationError(ERRORS_TYPES.OPERAND_REQUIRED, index+1));
                     }
                 }
@@ -189,18 +229,9 @@ class Validator {
         return [...this._errors];
     }
 }
-
-const getErrorMessage = (type, position) => {
-    switch (type) {
-        case ERRORS_TYPES.NEED_OPERATION_SIGN:
-            return `Operation sign needed at position [${position}]!`;
-        case ERRORS_TYPES.NEED_CLOSING_PARENTHESIS:
-            return `Closing parenthesis for [${position}] needed!`;
-        default:
-            return 'There is an error in your expression!';
-    }
-}
-
+/**
+ * Stores number value.
+ */
 class Integer {
     constructor(value) {
         this._value = Number(value);
@@ -214,21 +245,19 @@ class Integer {
         this._value = Number(newValue);
     }
 }
-
+/**
+ * Stores string value and type of token.
+ */
 class Token {
     constructor(value, type) {
         this.value = value;
         this.type = type;
     }
 }
-
-const BINARY_OPERATIONS = Object.freeze({
-    ADD: OPERATION_TYPES.PLUS,
-    SUBSTRACT: OPERATION_TYPES.MINUS,
-    MULTIPLY: OPERATION_TYPES.MULTIPLICATION,
-    DIVISION: OPERATION_TYPES.DIVISION,
-});
-
+/**
+ * Stores left, right parts of the expression and the operation type.
+ * Provides calculated value of the expression.
+ */
 class BinaryOperation {
     constructor(left, right, type) {
         this._left = left;
@@ -263,7 +292,7 @@ class BinaryOperation {
         switch(this.type) {
             case BINARY_OPERATIONS.ADD:
                 return this.left.value + this.right.value;
-            case BINARY_OPERATIONS.SUBSTRACT:
+            case BINARY_OPERATIONS.SUBTRACT:
                 return this.left.value - this.right.value;
             case BINARY_OPERATIONS.DIVISION:
                 return this.left.value / this.right.value;
@@ -272,13 +301,15 @@ class BinaryOperation {
         }
     }
 }
-
+/**
+ * Implements expression solving through expression string parsing and following processing of the hierarchical tokens list.
+ */
 class ExpressionProcessor {
     _parse(expression, isFirstOrder = false) {
         const tokens = [];
 
         for (let i = 0; i < expression.length; i++) {
-            const isNegative = expression[i-1] === OPERATION_TYPES.MINUS;
+            const isNegative = expression[i-1] === OPERATIONS.MINUS;
 
             if (isInteger(expression[i])) {
                 const num = [];
@@ -305,13 +336,13 @@ class ExpressionProcessor {
             }
 
             if (expression[i-1] && isOperationSign(expression[i])) {
-                // if operation sign is minus replace it by pluse, because we already know if the integer is negative.
-                const operation = expression[i] === OPERATION_TYPES.MINUS ? OPERATION_TYPES.PLUS : expression[i];
+                // if operation sign is minus replace it by plus, because we already know if the integer is negative.
+                const operation = expression[i] === OPERATIONS.MINUS ? OPERATIONS.PLUS : expression[i];
 
                 tokens.push(new Token(operation, TOKEN_TYPES.OPERATION));
             }
 
-            if (expression[i] === PARENTHESIS_TYPES.OPEN) {
+            if (expression[i] === PARENTHESES.OPEN) {
                 const parenRightIndex = findEndOfSubExpressionIndex(expression.slice(i));
                 const subExpression = expression.slice(i + 1, parenRightIndex + i);
 
@@ -326,7 +357,7 @@ class ExpressionProcessor {
 
     _process(tokens, index = 0) {
         const hasSubExpression = tokens.some((token) => Array.isArray(token));
-        const flatedTokensList = hasSubExpression ? tokens.map((token) => {
+        const flattedTokensList = hasSubExpression ? tokens.map((token) => {
             if (Array.isArray(token)) {
                 return this._process(token);
             }
@@ -337,15 +368,15 @@ class ExpressionProcessor {
         const rightArgIndex = index + 2;
         const operationSignIndex = index + 1;
 
-        if (index >= flatedTokensList.length - 1) {
-            return new Integer(flatedTokensList[leftArgIndex]?.value);
+        if (index >= flattedTokensList.length - 1) {
+            return new Integer(flattedTokensList[leftArgIndex]?.value);
         }
 
         /**
          * If has an operation sign [1] and a left arg [2] - create binary operation and process it recursively.
          */
-        if (flatedTokensList[operationSignIndex]) {
-            const bo = new BinaryOperation(new Integer(flatedTokensList[leftArgIndex]?.value), this._process(flatedTokensList, rightArgIndex), flatedTokensList[operationSignIndex].value);
+        if (flattedTokensList[operationSignIndex]) {
+            const bo = new BinaryOperation(new Integer(flattedTokensList[leftArgIndex]?.value), this._process(flattedTokensList, rightArgIndex), flattedTokensList[operationSignIndex].value);
 
             return new Integer(bo.value);
         }
@@ -358,16 +389,29 @@ class ExpressionProcessor {
     }
 }
 
+const expressionInput = document.getElementsByClassName('expression-input')?.[0];
+const resultField = document.getElementsByClassName('result-field')?.[0];
+const errorsField = document.getElementsByClassName('errors-field')?.[0];
+const calculateBtn = document.getElementsByClassName('calculate-button')?.[0];
+const clearBtn = document.getElementsByClassName('expression-input__clear-btn')?.[0];
+
 const clearErrorsField = () => {
     errorsField.innerHTML = '';
     errorsField.classList.add('errors-field--disabled');
 };
-
 const clearResultField = () => {
     resultField.innerHTML = '';
 };
-
-calculate = (form) => {
+const clearForm = () => {
+    clearResultField();
+    clearErrorsField();
+    clearBtn.style.opacity = '0';
+    calculateBtn.setAttribute('disabled', true);
+};
+const handleClearButtonClick = () => {
+    clearForm();
+};
+const calculate = (form) => {
     const expression = form.getElementsByClassName('expression-input')?.[0]?.value;
     const v = new Validator();
     clearResultField();
@@ -396,18 +440,6 @@ calculate = (form) => {
         resultField.innerHTML = result.value;
     }
 };
-
-const clearForm = () => {
-    clearResultField();
-    clearErrorsField();
-    clearBtn.style.opacity = '0';
-    calculateBtn.setAttribute('disabled', true);
-}
-
-const handleClearButtonClick = () => {
-    clearForm();
-};
-
 const removeUnresolvedChars = (string) => {
     let result = "";
 
@@ -421,7 +453,6 @@ const removeUnresolvedChars = (string) => {
 
     return result;
 }
-
 const maskExpressionInput = (inputData) => {
     const inputValue = expressionInput.value;
 
@@ -432,12 +463,12 @@ const maskExpressionInput = (inputData) => {
         expressionInput.value = removeUnresolvedChars(inputValue);
     }
 }
-
 const handleInput = (event) => {
     maskExpressionInput(event.data);
 
     if (expressionInput.value.length > 0) {
         clearErrorsField();
+        clearResultField();
         clearBtn.style.opacity = '1';
         calculateBtn.removeAttribute('disabled');
     } else {
